@@ -168,58 +168,55 @@ export default function TaskDetailModal({ task, onClose, onSave, onDelete, membe
           )
         )}
 
-        {/* Assign to me */}
-        {currentUser && !isCurrentUserAssigned && onAssigneeAdd && (
-          <button
-            onClick={() => onAssigneeAdd(task.id, currentUser.id)}
-            style={{
-              ...btnDefault,
-              fontSize: '12px',
-              padding: '5px 10px',
-              marginBottom: '8px',
-            }}
-          >
-            Assign to me
-          </button>
-        )}
-
-        {/* Member selector for unassigned members */}
-        {unassignedMembers.length > 0 && onAssigneeAdd && (
+        {/* Member selector + Assign + Assign to me — single row */}
+        {(unassignedMembers.length > 0 || (currentUser && !isCurrentUserAssigned)) && onAssigneeAdd && (
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <select
-              value={selectedMemberId}
-              onChange={e => setSelectedMemberId(e.target.value)}
-              style={{
-                fontFamily: '"IBM Plex Mono", monospace',
-                fontSize: '12px',
-                color: 'var(--text-secondary)',
-                backgroundColor: 'var(--bg-surface)',
-                border: '1px solid var(--border-mid)',
-                borderRadius: '6px',
-                padding: '6px 10px',
-                cursor: 'pointer',
-                outline: 'none',
-                flex: 1,
-              }}
-            >
-              <option value="">Select member…</option>
-              {unassignedMembers.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.display_name || m.email}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => {
-                if (selectedMemberId) {
-                  onAssigneeAdd(task.id, selectedMemberId)
-                  setSelectedMemberId('')
-                }
-              }}
-              style={{ ...btnDefault, fontSize: '12px', padding: '6px 12px' }}
-            >
-              Assign
-            </button>
+            {unassignedMembers.length > 0 && (
+              <>
+                <select
+                  value={selectedMemberId}
+                  onChange={e => setSelectedMemberId(e.target.value)}
+                  style={{
+                    fontFamily: '"IBM Plex Mono", monospace',
+                    fontSize: '12px',
+                    color: 'var(--text-secondary)',
+                    backgroundColor: 'var(--bg-surface)',
+                    border: '1px solid var(--border-mid)',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    width: '160px',
+                  }}
+                >
+                  <option value="">Select member…</option>
+                  {unassignedMembers.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.display_name || m.email}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => {
+                    if (selectedMemberId) {
+                      onAssigneeAdd(task.id, selectedMemberId)
+                      setSelectedMemberId('')
+                    }
+                  }}
+                  style={{ ...btnDefault, fontSize: '12px', padding: '6px 12px' }}
+                >
+                  Assign
+                </button>
+              </>
+            )}
+            {currentUser && !isCurrentUserAssigned && (
+              <button
+                onClick={() => onAssigneeAdd(task.id, currentUser.id)}
+                style={{ ...btnDefault, fontSize: '12px', padding: '6px 12px', marginLeft: 'auto' }}
+              >
+                Assign to me
+              </button>
+            )}
           </div>
         )}
       </div>
