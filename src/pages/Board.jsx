@@ -6,6 +6,7 @@ import TaskDetailModal from '../components/modals/TaskDetailModal'
 import AddTaskModal from '../components/modals/AddTaskModal'
 import ImportModal from '../components/modals/ImportModal'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import { now, buildJiraCSV, downloadCSV } from '../utils'
 
 const btnDefault = {
@@ -28,9 +29,11 @@ const STATUSES = ['todo', 'in_progress', 'done']
 export default function Board() {
   const { slug } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   const [project, setProject] = useState(null)
   const [projectTasks, setProjectTasks] = useState([])
+  const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
 
   const [filterArea, setFilterArea] = useState('all')
@@ -59,24 +62,97 @@ export default function Board() {
     fetchProject()
   }, [slug])
 
-  // Fetch tasks once project is known
+  // Fetch tasks (with assignees) + members, then subscribe to realtime
   useEffect(() => {
     if (!project) return
-    async function fetchTasks() {
-      const { data, error } = await supabase
+
+    async function fetchTasksAndMembers() {
+      // Tasks with nested assignee profiles
+      const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
-        .select('*')
+        .select('*, task_assignees(user_id, profiles(id, display_name, email))')
         .eq('project_id', project.id)
         .order('created_at')
 
-      if (error) {
-        console.error('Error fetching tasks:', error)
+      if (tasksError) {
+        console.error('Error fetching tasks:', tasksError)
       } else {
-        setProjectTasks(data ?? [])
+        setProjectTasks(tasksData ?? [])
       }
+
+      // Owner profile
+      const { data: ownerProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', project.owner_id)
+        .single()
+
+      // Member profiles via project_members join
+      const { data: memberRows } = await supabase
+        .from('project_members')
+        .select('profiles(*)')
+        .eq('project_id', project.id)
+
+      const allMembers = [ownerProfile, ...(memberRows ?? []).map(r => r.profiles)].filter(Boolean)
+      setMembers(allMembers)
+
       setLoading(false)
     }
-    fetchTasks()
+
+    fetchTasksAndMembers()
+
+    // Realtime subscription
+    const channel = supabase.channel(`board:${project.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `project_id=eq.${project.id}` }, payload => {
+        if (payload.eventType === 'INSERT') {
+          setProjectTasks(prev =>
+            prev.some(t => t.id === payload.new.id)
+              ? prev
+              : [...prev, { ...payload.new, task_assignees: [] }]
+          )
+        } else if (payload.eventType === 'UPDATE') {
+          setProjectTasks(prev =>
+            prev.map(t =>
+              t.id === payload.new.id
+                ? { ...payload.new, task_assignees: t.task_assignees ?? [] }
+                : t
+            )
+          )
+        } else if (payload.eventType === 'DELETE') {
+          setProjectTasks(prev => prev.filter(t => t.id !== payload.old.id))
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, async payload => {
+        if (payload.eventType === 'INSERT') {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', payload.new.user_id)
+            .single()
+          if (profile) {
+            setProjectTasks(prev => prev.map(t =>
+              t.id === payload.new.task_id
+                ? {
+                    ...t,
+                    task_assignees: [
+                      ...(t.task_assignees ?? []).filter(a => a.user_id !== profile.id),
+                      { user_id: profile.id, profiles: profile },
+                    ],
+                  }
+                : t
+            ))
+          }
+        } else if (payload.eventType === 'DELETE') {
+          setProjectTasks(prev => prev.map(t =>
+            t.id === payload.old.task_id
+              ? { ...t, task_assignees: (t.task_assignees ?? []).filter(a => a.user_id !== payload.old.user_id) }
+              : t
+          ))
+        }
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
   }, [project])
 
   const featureAreas = useMemo(() => {
@@ -161,7 +237,7 @@ export default function Board() {
     // Refetch tasks after import
     const { data, error: fetchError } = await supabase
       .from('tasks')
-      .select('*')
+      .select('*, task_assignees(user_id, profiles(id, display_name, email))')
       .eq('project_id', project.id)
       .order('created_at')
     if (fetchError) {
@@ -177,6 +253,29 @@ export default function Board() {
       downloadCSV(`${project.slug}-jira.csv`, buildJiraCSV(shipped))
     }
     return shipped.length > 0
+  }
+
+  async function handleAssigneeAdd(taskId, userId) {
+    const profile = members.find(m => m.id === userId)
+    if (profile) {
+      setProjectTasks(prev => prev.map(t =>
+        t.id === taskId && !(t.task_assignees ?? []).some(a => a.user_id === userId)
+          ? { ...t, task_assignees: [...(t.task_assignees ?? []), { user_id: userId, profiles: profile }] }
+          : t
+      ))
+    }
+    const { error } = await supabase.from('task_assignees').insert({ task_id: taskId, user_id: userId })
+    if (error) console.error('Error adding assignee:', error)
+  }
+
+  async function handleAssigneeRemove(taskId, userId) {
+    setProjectTasks(prev => prev.map(t =>
+      t.id === taskId
+        ? { ...t, task_assignees: (t.task_assignees ?? []).filter(a => a.user_id !== userId) }
+        : t
+    ))
+    const { error } = await supabase.from('task_assignees').delete().eq('task_id', taskId).eq('user_id', userId)
+    if (error) console.error('Error removing assignee:', error)
   }
 
   if (loading) {
@@ -325,10 +424,14 @@ export default function Board() {
       )}
       {selectedTask && (
         <TaskDetailModal
-          task={selectedTask}
+          task={projectTasks.find(t => t.id === selectedTask.id) ?? selectedTask}
           onClose={() => setSelectedTask(null)}
           onSave={handleTaskSave}
           onDelete={handleTaskDelete}
+          members={members}
+          currentUser={user}
+          onAssigneeAdd={handleAssigneeAdd}
+          onAssigneeRemove={handleAssigneeRemove}
         />
       )}
     </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Modal from './Modal'
+import Avatar from '../Avatar'
 import { now } from '../../utils'
 
 const PRIORITY_STYLES = {
@@ -68,9 +69,10 @@ function Chip({ label, style }) {
   )
 }
 
-export default function TaskDetailModal({ task, onClose, onSave, onDelete }) {
+export default function TaskDetailModal({ task, onClose, onSave, onDelete, members = [], currentUser, onAssigneeAdd, onAssigneeRemove }) {
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [selectedMemberId, setSelectedMemberId] = useState('')
 
   const [editTitle, setEditTitle]           = useState(task.title)
   const [editDesc, setEditDesc]             = useState(task.description)
@@ -114,6 +116,115 @@ export default function TaskDetailModal({ task, onClose, onSave, onDelete }) {
 
   const focusRing = e => (e.target.style.outline = '2px solid var(--accent)')
   const blurRing  = e => (e.target.style.outline = 'none')
+
+  const assignedIds = new Set((task.task_assignees ?? []).map(a => a.user_id))
+  const unassignedMembers = members.filter(m => !assignedIds.has(m.id))
+  const isCurrentUserAssigned = currentUser && assignedIds.has(currentUser.id)
+
+  function AssigneesSection() {
+    return (
+      <div>
+        <label style={labelStyle}>Assignees</label>
+
+        {/* Current assignees list */}
+        {(task.task_assignees ?? []).length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+            {(task.task_assignees ?? []).map(a => {
+              const profile = a.profiles
+              if (!profile) return null
+              return (
+                <div key={a.user_id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Avatar profile={profile} size={24} />
+                  <span style={{ fontFamily: 'Syne, sans-serif', fontSize: '13px', color: 'var(--text-secondary)', flex: 1 }}>
+                    {profile.display_name || profile.email}
+                  </span>
+                  {onAssigneeRemove && (
+                    <button
+                      onClick={() => onAssigneeRemove(task.id, a.user_id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-dim)',
+                        fontFamily: 'Syne, sans-serif',
+                        fontSize: '14px',
+                        lineHeight: 1,
+                        padding: '2px 4px',
+                      }}
+                      title="Remove assignee"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          unassignedMembers.length === 0 && (
+            <p style={{ fontFamily: 'Syne, sans-serif', fontSize: '13px', color: 'var(--text-dim)', margin: '0 0 8px' }}>
+              No assignees
+            </p>
+          )
+        )}
+
+        {/* Assign to me */}
+        {currentUser && !isCurrentUserAssigned && onAssigneeAdd && (
+          <button
+            onClick={() => onAssigneeAdd(task.id, currentUser.id)}
+            style={{
+              ...btnDefault,
+              fontSize: '12px',
+              padding: '5px 10px',
+              marginBottom: '8px',
+            }}
+          >
+            Assign to me
+          </button>
+        )}
+
+        {/* Member selector for unassigned members */}
+        {unassignedMembers.length > 0 && onAssigneeAdd && (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <select
+              value={selectedMemberId}
+              onChange={e => setSelectedMemberId(e.target.value)}
+              style={{
+                fontFamily: '"IBM Plex Mono", monospace',
+                fontSize: '12px',
+                color: 'var(--text-secondary)',
+                backgroundColor: 'var(--bg-surface)',
+                border: '1px solid var(--border-mid)',
+                borderRadius: '6px',
+                padding: '6px 10px',
+                cursor: 'pointer',
+                outline: 'none',
+                flex: 1,
+              }}
+            >
+              <option value="">Select member…</option>
+              {unassignedMembers.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.display_name || m.email}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => {
+                if (selectedMemberId) {
+                  onAssigneeAdd(task.id, selectedMemberId)
+                  setSelectedMemberId('')
+                }
+              }}
+              style={{ ...btnDefault, fontSize: '12px', padding: '6px 12px' }}
+            >
+              Assign
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <Modal onClose={onClose} width="560px">
@@ -164,6 +275,9 @@ export default function TaskDetailModal({ task, onClose, onSave, onDelete }) {
             <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: '60px' }} value={editNotes} onChange={e => setEditNotes(e.target.value)} onFocus={focusRing} onBlur={blurRing} />
           </div>
 
+          {/* Assignees (works same in edit mode) */}
+          <AssigneesSection />
+
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
             <button style={btnDefault} onClick={handleCancelEdit}>Cancel</button>
             <button style={btnAccent} onClick={handleSave}>Save</button>
@@ -188,6 +302,9 @@ export default function TaskDetailModal({ task, onClose, onSave, onDelete }) {
               <Chip label={task.feature_area} style={{ color: 'var(--text-dim)', background: 'var(--bg-base)', border: '1px solid var(--border-subtle)' }} />
             )}
           </div>
+
+          {/* Assignees */}
+          <AssigneesSection />
 
           {/* Description */}
           {task.description && (

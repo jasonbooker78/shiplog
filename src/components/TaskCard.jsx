@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Avatar from './Avatar'
 
 const PRIORITY_STYLES = {
   critical: { color: '#fff', background: 'var(--priority-critical)' },
@@ -46,7 +47,56 @@ export default function TaskCard({ task, onClick, onDragStart }) {
       {/* Top accent bar */}
       <div style={{ height: '2px', backgroundColor: colColor }} />
 
-      <div style={{ padding: '12px' }}>
+      <div style={{ padding: '12px', position: 'relative' }}>
+        {/* Assignee avatars — top right */}
+        {task.task_assignees?.length > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            {task.task_assignees.slice(0, 3).map((a, i) => (
+              <div
+                key={a.user_id}
+                style={{
+                  marginLeft: i === 0 ? 0 : '-6px',
+                  zIndex: 3 - i,
+                  border: '1.5px solid var(--bg-surface)',
+                  borderRadius: '50%',
+                }}
+              >
+                <Avatar profile={a.profiles} size={22} />
+              </div>
+            ))}
+            {task.task_assignees.length > 3 && (
+              <div
+                style={{
+                  marginLeft: '-6px',
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--bg-base)',
+                  border: '1.5px solid var(--border-mid)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontFamily: '"IBM Plex Mono", monospace',
+                  fontSize: '9px',
+                  color: 'var(--text-dim)',
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}
+              >
+                +{task.task_assignees.length - 3}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Title */}
         <div
           style={{
@@ -56,6 +106,7 @@ export default function TaskCard({ task, onClick, onDragStart }) {
             color: task.status === 'done' ? 'var(--text-dim)' : 'var(--text-primary)',
             lineHeight: 1.4,
             marginBottom: task.status === 'done' ? 0 : '10px',
+            paddingRight: task.task_assignees?.length > 0 ? '60px' : 0,
           }}
         >
           {task.title}

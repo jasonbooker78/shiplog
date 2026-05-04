@@ -60,3 +60,11 @@ export function toTaskId(title) {
 export function now() {
   return new Date().toISOString()
 }
+
+const AVATAR_COLORS = ['#c4973a', '#6b7f5e', '#7b6fa0', '#4a7fa5', '#a06b6b', '#4a9a7a']
+
+export function getAvatarColor(userId) {
+  if (!userId) return AVATAR_COLORS[0]
+  const sum = [...userId].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length]
+}
