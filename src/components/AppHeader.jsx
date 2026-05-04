@@ -192,7 +192,10 @@ export default function AppHeader() {
       flexShrink: 0,
     }}>
       {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <button
+        onClick={() => navigate('/projects')}
+        style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+      >
         <img
           src="/shiplog-logo.svg"
           alt="Shiplog"
@@ -207,7 +210,7 @@ export default function AppHeader() {
         }}>
           shiplog
         </span>
-      </div>
+      </button>
 
       {/* Right side: sharing controls + sign-out */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
