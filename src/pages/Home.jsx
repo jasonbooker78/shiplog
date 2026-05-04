@@ -90,10 +90,14 @@ export default function Home() {
 
   async function handleSaveProject(projectFields) {
     // Ensure profile row exists (guards against trigger not firing on email-confirmed signup)
-    await supabase.from('profiles').upsert(
+    const { error: profileError } = await supabase.from('profiles').upsert(
       { id: user.id, email: user.email, display_name: user.email.split('@')[0] },
       { onConflict: 'id' }
     )
+    if (profileError) {
+      console.error('Profile upsert error:', profileError)
+      throw new Error(`Profile error: ${profileError.message}`)
+    }
 
     const { data, error } = await supabase
       .from('projects')
@@ -103,7 +107,7 @@ export default function Home() {
 
     if (error) {
       console.error('Error creating project:', error)
-      throw error
+      throw new Error(`Project error: ${error.message}`)
     }
 
     setProjects(prev => [data, ...prev])

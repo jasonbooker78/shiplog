@@ -45,7 +45,7 @@ export default function NewProjectModal({ onClose, onSave }) {
       navigate(`/project/${slug}`)
       onClose()
     } catch (err) {
-      setError('Failed to create project. Please try again.')
+      setError(err.message || 'Failed to create project. Please try again.')
       setSaving(false)
     }
   }
