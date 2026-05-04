@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Upload, Plus } from 'lucide-react'
 import KanbanColumn from '../components/KanbanColumn'
 import TaskDetailModal from '../components/modals/TaskDetailModal'
 import AddTaskModal from '../components/modals/AddTaskModal'
 import ImportModal from '../components/modals/ImportModal'
+import { supabase } from '../lib/supabase'
 import { now, buildJiraCSV, downloadCSV } from '../utils'
 
 const btnDefault = {
@@ -24,17 +25,59 @@ const btnDefault = {
 
 const STATUSES = ['todo', 'in_progress', 'done']
 
-export default function Board({ projects, tasks, setTasks }) {
+export default function Board() {
   const { slug } = useParams()
   const navigate = useNavigate()
 
-  const project = projects.find(p => p.slug === slug)
-  const projectTasks = project ? (tasks[project.id] ?? []) : []
+  const [project, setProject] = useState(null)
+  const [projectTasks, setProjectTasks] = useState([])
+  const [loading, setLoading] = useState(true)
 
   const [filterArea, setFilterArea] = useState('all')
   const [selectedTask, setSelectedTask] = useState(null)
   const [showAddTask, setShowAddTask] = useState(false)
   const [showImport, setShowImport] = useState(false)
+
+  // Fetch project by slug
+  useEffect(() => {
+    async function fetchProject() {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('slug', slug)
+        .single()
+
+      if (error) {
+        console.error('Error fetching project:', error)
+        setProject(null)
+        setLoading(false)
+        return
+      }
+      setProject(data)
+    }
+    fetchProject()
+  }, [slug])
+
+  // Fetch tasks once project is known
+  useEffect(() => {
+    if (!project) return
+    async function fetchTasks() {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('project_id', project.id)
+        .order('created_at')
+
+      if (error) {
+        console.error('Error fetching tasks:', error)
+      } else {
+        setProjectTasks(data ?? [])
+      }
+      setLoading(false)
+    }
+    fetchTasks()
+  }, [project])
 
   const featureAreas = useMemo(() => {
     const areas = [...new Set(projectTasks.map(t => t.feature_area).filter(Boolean))]
@@ -45,32 +88,87 @@ export default function Board({ projects, tasks, setTasks }) {
     ? projectTasks
     : projectTasks.filter(t => t.feature_area === filterArea)
 
-  function handleDrop(taskId, newStatus) {
-    if (!project) return
-    setTasks(prev => ({
-      ...prev,
-      [project.id]: prev[project.id].map(t =>
-        t.id === taskId ? { ...t, status: newStatus, updated_at: now() } : t
-      ),
-    }))
+  async function handleDrop(taskId, newStatus) {
+    const updated_at = now()
+    // Optimistic update
+    setProjectTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, status: newStatus, updated_at } : t
+    ))
+    const { error } = await supabase
+      .from('tasks')
+      .update({ status: newStatus, updated_at })
+      .eq('id', taskId)
+    if (error) console.error('Error updating task status:', error)
   }
 
   function handleCardClick(task) { setSelectedTask(task) }
 
-  function handleTaskSave(updated) {
-    setTasks(prev => ({
-      ...prev,
-      [project.id]: prev[project.id].map(t => t.id === updated.id ? updated : t),
-    }))
+  async function handleTaskSave(updated) {
+    const updated_at = now()
+    const payload = { ...updated, updated_at }
+    // Optimistic update
+    setProjectTasks(prev => prev.map(t => t.id === updated.id ? payload : t))
     setSelectedTask(null)
+    const { error } = await supabase
+      .from('tasks')
+      .update({ ...payload })
+      .eq('id', updated.id)
+    if (error) console.error('Error saving task:', error)
   }
 
-  function handleTaskDelete(taskId) {
-    setTasks(prev => ({
-      ...prev,
-      [project.id]: prev[project.id].filter(t => t.id !== taskId),
-    }))
+  async function handleTaskDelete(taskId) {
+    // Optimistic update
+    setProjectTasks(prev => prev.filter(t => t.id !== taskId))
     setSelectedTask(null)
+    const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+    if (error) console.error('Error deleting task:', error)
+  }
+
+  async function handleAddTask(task) {
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert(task)
+      .select()
+      .single()
+    if (error) {
+      console.error('Error adding task:', error)
+      return
+    }
+    setProjectTasks(prev => [data, ...prev])
+  }
+
+  async function handleImport(newTasks, mode) {
+    if (mode === 'replace') {
+      // Delete all existing tasks first
+      const { error: delError } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('project_id', project.id)
+      if (delError) {
+        console.error('Error clearing tasks for replace:', delError)
+        return
+      }
+      const { error } = await supabase.from('tasks').insert(newTasks)
+      if (error) console.error('Error inserting imported tasks:', error)
+    } else {
+      // Merge — upsert on id
+      const { error } = await supabase
+        .from('tasks')
+        .upsert(newTasks, { onConflict: 'id' })
+      if (error) console.error('Error upserting imported tasks:', error)
+    }
+
+    // Refetch tasks after import
+    const { data, error: fetchError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('project_id', project.id)
+      .order('created_at')
+    if (fetchError) {
+      console.error('Error refetching tasks after import:', fetchError)
+    } else {
+      setProjectTasks(data ?? [])
+    }
   }
 
   function handleExport() {
@@ -79,6 +177,14 @@ export default function Board({ projects, tasks, setTasks }) {
       downloadCSV(`${project.slug}-jira.csv`, buildJiraCSV(shipped))
     }
     return shipped.length > 0
+  }
+
+  if (loading) {
+    return (
+      <div style={{ padding: '40px 24px', fontFamily: 'Syne, sans-serif', color: 'var(--text-dim)' }}>
+        Loading...
+      </div>
+    )
   }
 
   if (!project) {
@@ -167,7 +273,7 @@ export default function Board({ projects, tasks, setTasks }) {
 
         <button style={btnDefault} onClick={() => setShowImport(true)}>
           <Upload size={14} strokeWidth={2} />
-          Import
+          Import PRD
         </button>
         <button style={btnDefault} onClick={() => setShowAddTask(true)}>
           <Plus size={14} strokeWidth={2} />
@@ -207,17 +313,14 @@ export default function Board({ projects, tasks, setTasks }) {
           projectId={project.id}
           existingTasks={projectTasks}
           onClose={() => setShowImport(false)}
-          onImport={newTasks => setTasks(prev => ({ ...prev, [project.id]: newTasks }))}
+          onImport={handleImport}
         />
       )}
       {showAddTask && (
         <AddTaskModal
           projectId={project.id}
           onClose={() => setShowAddTask(false)}
-          onAdd={task => setTasks(prev => ({
-            ...prev,
-            [project.id]: [...(prev[project.id] ?? []), task],
-          }))}
+          onAdd={handleAddTask}
         />
       )}
       {selectedTask && (

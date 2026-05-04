@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Modal from './Modal'
-import { toSlug, now } from '../../utils'
+import { toSlug } from '../../utils'
 
 const inputStyle = {
   fontFamily: 'Syne, sans-serif',
@@ -32,19 +32,13 @@ export default function NewProjectModal({ onClose, onSave }) {
   const [name, setName] = useState('')
   const [clientName, setClientName] = useState('')
   const [description, setDescription] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  function handleSave() {
-    if (!name.trim()) return
+  async function handleSave() {
+    if (!name.trim() || saving) return
     const slug = toSlug(name)
-    const project = {
-      id: `proj-${randomId()}`,
-      name: name.trim(),
-      client_name: clientName.trim(),
-      description: description.trim(),
-      slug,
-      created_at: now(),
-    }
-    onSave(project)
+    setSaving(true)
+    await onSave({ name: name.trim(), client_name: clientName.trim(), description: description.trim(), slug })
     navigate(`/project/${slug}`)
     onClose()
   }
@@ -123,26 +117,22 @@ export default function NewProjectModal({ onClose, onSave }) {
         </button>
         <button
           onClick={handleSave}
-          disabled={!name.trim()}
+          disabled={!name.trim() || saving}
           style={{
             fontFamily: 'Syne, sans-serif',
             fontSize: '13px',
             fontWeight: 600,
-            backgroundColor: name.trim() ? 'var(--accent)' : 'var(--border-mid)',
+            backgroundColor: name.trim() && !saving ? 'var(--accent)' : 'var(--border-mid)',
             color: '#ffffff',
             border: 'none',
             borderRadius: '6px',
             padding: '8px 16px',
-            cursor: name.trim() ? 'pointer' : 'not-allowed',
+            cursor: name.trim() && !saving ? 'pointer' : 'not-allowed',
           }}
         >
-          Create Project
+          {saving ? 'Creating…' : 'Create Project'}
         </button>
       </div>
     </Modal>
   )
-}
-
-function randomId() {
-  return Math.random().toString(36).slice(2, 8)
 }

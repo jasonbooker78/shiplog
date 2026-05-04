@@ -53,63 +53,65 @@ export default function TaskCard({ task, onClick, onDragStart }) {
             fontFamily: 'Syne, sans-serif',
             fontWeight: 600,
             fontSize: '13px',
-            color: 'var(--text-primary)',
+            color: task.status === 'done' ? 'var(--text-dim)' : 'var(--text-primary)',
             lineHeight: 1.4,
-            marginBottom: '10px',
+            marginBottom: task.status === 'done' ? 0 : '10px',
           }}
         >
           {task.title}
         </div>
 
-        {/* Chips row */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-          {/* Priority badge */}
-          <span
-            style={{
-              fontFamily: '"IBM Plex Mono", monospace',
-              fontSize: '10px',
-              fontWeight: 500,
-              padding: '2px 7px',
-              borderRadius: '4px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              ...priorityStyle,
-            }}
-          >
-            {task.priority}
-          </span>
-
-          {/* Feature area */}
-          {task.feature_area && (
+        {/* Chips row — hidden for shipped cards */}
+        {task.status !== 'done' && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+            {/* Priority badge */}
             <span
               style={{
                 fontFamily: '"IBM Plex Mono", monospace',
                 fontSize: '10px',
-                color: 'var(--text-dim)',
-                backgroundColor: 'var(--bg-base)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: '4px',
+                fontWeight: 500,
                 padding: '2px 7px',
+                borderRadius: '4px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                ...priorityStyle,
               }}
             >
-              {task.feature_area}
+              {task.priority}
             </span>
-          )}
 
-          {/* Source indicator */}
-          {task.source === 'imported' && (
-            <span
-              style={{
-                fontFamily: '"IBM Plex Mono", monospace',
-                fontSize: '10px',
-                color: 'var(--text-dim)',
-                marginLeft: 'auto',
-              }}
-            >
-              ⟳ import
-            </span>
-          )}
-        </div>
+            {/* Feature area */}
+            {task.feature_area && (
+              <span
+                style={{
+                  fontFamily: '"IBM Plex Mono", monospace',
+                  fontSize: '10px',
+                  color: 'var(--text-dim)',
+                  backgroundColor: 'var(--bg-base)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '4px',
+                  padding: '2px 7px',
+                }}
+              >
+                {task.feature_area}
+              </span>
+            )}
+
+            {/* Source indicator */}
+            {task.source === 'imported' && (
+              <span
+                style={{
+                  fontFamily: '"IBM Plex Mono", monospace',
+                  fontSize: '10px',
+                  color: 'var(--text-dim)',
+                  marginLeft: 'auto',
+                }}
+              >
+                ⟳ import
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

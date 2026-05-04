@@ -109,14 +109,24 @@ function CollaboratorsPopover({ onClose }) {
   )
 }
 
-export default function AppHeader({ projects = [] }) {
+export default function AppHeader() {
   const match = useMatch('/project/:slug')
   const navigate = useNavigate()
   const slug = match?.params?.slug ?? null
-  const project = slug ? projects.find(p => p.slug === slug) : null
 
+  const [project, setProject] = useState(null)
   const [showCollaborators, setShowCollaborators] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+
+  useEffect(() => {
+    if (!slug) {
+      setProject(null)
+      return
+    }
+    supabase.from('projects').select('slug').eq('slug', slug).single().then(({ data }) => {
+      setProject(data ?? null)
+    })
+  }, [slug])
 
   async function handleSignOut() {
     await supabase.auth.signOut()

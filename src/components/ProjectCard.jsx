@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-export default function ProjectCard({ project, taskCount, doneCount, onDelete }) {
+export default function ProjectCard({ project, counts = { total: 0, done: 0 }, onDelete }) {
+  const { total: taskCount, done: doneCount } = counts
   const navigate = useNavigate()
   const [hovered, setHovered] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)

@@ -21,10 +21,12 @@ const SCHEMA_EXAMPLE = `{
 }`
 
 export default function ImportModal({ projectId, existingTasks, onClose, onImport }) {
-  const [json, setJson]       = useState('')
-  const [mode, setMode]       = useState('merge')
-  const [error, setError]     = useState('')
-  const [copied, setCopied]   = useState(false)
+  const [json, setJson]           = useState('')
+  const [mode, setMode]           = useState('merge')
+  const [error, setError]         = useState('')
+  const [copied, setCopied]       = useState(false)
+  const [targetStatus, setTargetStatus] = useState('as-is')
+  const [showSchema, setShowSchema] = useState(false)
 
   const hasTasks = existingTasks.length > 0
 
@@ -74,19 +76,14 @@ export default function ImportModal({ projectId, existingTasks, onClose, onImpor
       description:  t.description ?? '',
       priority:     t.priority ?? 'medium',
       feature_area: t.feature_area ?? '',
-      status:       t.status ?? 'todo',
+      status:       targetStatus === 'as-is' ? (t.status ?? 'todo') : targetStatus,
       source:       'imported',
       notes:        t.notes ?? '',
       created_at:   now(),
       updated_at:   now(),
     }))
 
-    if (mode === 'replace') {
-      onImport(incoming)
-    } else {
-      const existingIds = new Set(existingTasks.map(t => t.id))
-      onImport([...existingTasks, ...incoming.filter(t => !existingIds.has(t.id))])
-    }
+    onImport(incoming, mode)
     onClose()
   }
 
@@ -96,7 +93,7 @@ export default function ImportModal({ projectId, existingTasks, onClose, onImpor
         Import Tasks
       </h2>
       <p style={{ fontFamily: 'Syne, sans-serif', fontSize: '13px', color: 'var(--text-dim)', margin: '0 0 16px' }}>
-        Paste a Claude-generated PRD JSON below. Tasks will be added to this board.
+        Paste LLM-generated PRD JSON below. Tasks will be added to this board.
       </p>
 
       {/* LLM prompt copy */}
@@ -111,8 +108,9 @@ export default function ImportModal({ projectId, existingTasks, onClose, onImpor
         marginBottom: '20px',
         gap: '12px',
       }}>
-        <span style={{ fontFamily: 'Syne, sans-serif', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-          Have a PRD? Copy this prompt to give Claude or any LLM to generate the JSON.
+        <span style={{ fontFamily: 'Syne, sans-serif', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          <span style={{ fontWeight: 700, display: 'block', marginBottom: '2px' }}>Already have a PRD?</span>
+          Copy this prompt into your LLM to generate the JSON.
         </span>
         <button
           onClick={handleCopyPrompt}
@@ -138,25 +136,36 @@ export default function ImportModal({ projectId, existingTasks, onClose, onImpor
         </button>
       </div>
 
-      {/* Schema reference */}
+      {/* Schema reference — collapsible */}
       <div style={{ marginBottom: '16px' }}>
-        <div style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: '10px', fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
+        <button
+          onClick={() => setShowSchema(v => !v)}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+            display: 'flex', alignItems: 'center', gap: '5px',
+            fontFamily: '"IBM Plex Mono", monospace', fontSize: '10px', fontWeight: 500,
+            color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em',
+          }}
+        >
+          <span style={{ fontSize: '9px' }}>{showSchema ? '▾' : '▸'}</span>
           Expected format
-        </div>
-        <pre style={{
-          fontFamily: '"IBM Plex Mono", monospace',
-          fontSize: '11px',
-          color: 'var(--text-secondary)',
-          backgroundColor: 'var(--bg-base)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: '6px',
-          padding: '12px',
-          margin: 0,
-          overflow: 'auto',
-          lineHeight: 1.6,
-        }}>
-          {SCHEMA_EXAMPLE}
-        </pre>
+        </button>
+        {showSchema && (
+          <pre style={{
+            fontFamily: '"IBM Plex Mono", monospace',
+            fontSize: '11px',
+            color: 'var(--text-secondary)',
+            backgroundColor: 'var(--bg-base)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '6px',
+            padding: '12px',
+            margin: '6px 0 0',
+            overflow: 'auto',
+            lineHeight: 1.6,
+          }}>
+            {SCHEMA_EXAMPLE}
+          </pre>
+        )}
       </div>
 
       {/* JSON textarea */}
@@ -191,6 +200,40 @@ export default function ImportModal({ projectId, existingTasks, onClose, onImpor
             {error}
           </p>
         )}
+      </div>
+
+      {/* Target status override */}
+      <div style={{ marginBottom: '16px' }}>
+        <div style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: '10px', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
+          Import tasks into column
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <select
+            value={targetStatus}
+            onChange={e => setTargetStatus(e.target.value)}
+            style={{
+              fontFamily: 'Syne, sans-serif',
+              fontSize: '13px',
+              color: 'var(--text-primary)',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-mid)',
+              borderRadius: '6px',
+              padding: '7px 10px',
+              width: '50%',
+              flexShrink: 0,
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+          >
+            <option value="as-is">Use status from JSON</option>
+            <option value="todo">Backlog</option>
+            <option value="in_progress">In Progress</option>
+            <option value="done">Shipped</option>
+          </select>
+          <span style={{ fontFamily: 'Syne, sans-serif', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            Already implemented this PRD? Add tasks directly into the Shipped column! ✅
+          </span>
+        </div>
       </div>
 
       {/* Mode selector — only when board already has tasks */}
