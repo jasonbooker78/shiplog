@@ -3,6 +3,7 @@ import AppHeader from './components/AppHeader'
 import Landing from './pages/Landing'
 import Home from './pages/Home'
 import Board from './pages/Board'
+import ViewBoard from './pages/ViewBoard'
 import { useAuth } from './context/AuthContext'
 
 function ProtectedRoute({ children }) {
@@ -15,7 +16,7 @@ function ProtectedRoute({ children }) {
 export default function App() {
   const location = useLocation()
   const { user } = useAuth()
-  const showHeader = location.pathname !== '/'
+  const showHeader = location.pathname !== '/' && !location.pathname.startsWith('/view/')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: 'var(--bg-base)' }}>
@@ -42,6 +43,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/view/:token" element={<ViewBoard />} />
         </Routes>
       </main>
     </div>
