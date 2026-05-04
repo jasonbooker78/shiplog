@@ -33,14 +33,21 @@ export default function NewProjectModal({ onClose, onSave }) {
   const [clientName, setClientName] = useState('')
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleSave() {
     if (!name.trim() || saving) return
     const slug = toSlug(name)
     setSaving(true)
-    await onSave({ name: name.trim(), client_name: clientName.trim(), description: description.trim(), slug })
-    navigate(`/project/${slug}`)
-    onClose()
+    setError('')
+    try {
+      await onSave({ name: name.trim(), client_name: clientName.trim(), description: description.trim(), slug })
+      navigate(`/project/${slug}`)
+      onClose()
+    } catch (err) {
+      setError('Failed to create project. Please try again.')
+      setSaving(false)
+    }
   }
 
   return (
@@ -98,7 +105,13 @@ export default function NewProjectModal({ onClose, onSave }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '24px' }}>
+      {error && (
+        <p style={{ fontFamily: 'Syne, sans-serif', fontSize: '12px', color: 'var(--priority-critical)', margin: '16px 0 0' }}>
+          {error}
+        </p>
+      )}
+
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
         <button
           onClick={onClose}
           style={{

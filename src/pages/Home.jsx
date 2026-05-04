@@ -89,6 +89,12 @@ export default function Home() {
   }
 
   async function handleSaveProject(projectFields) {
+    // Ensure profile row exists (guards against trigger not firing on email-confirmed signup)
+    await supabase.from('profiles').upsert(
+      { id: user.id, email: user.email, display_name: user.email.split('@')[0] },
+      { onConflict: 'id' }
+    )
+
     const { data, error } = await supabase
       .from('projects')
       .insert({ ...projectFields, owner_id: user.id })
@@ -97,7 +103,7 @@ export default function Home() {
 
     if (error) {
       console.error('Error creating project:', error)
-      return
+      throw error
     }
 
     setProjects(prev => [data, ...prev])
