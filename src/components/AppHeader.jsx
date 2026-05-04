@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { useMatch } from 'react-router-dom'
-import { Users, Link2, Check, X, UserPlus } from 'lucide-react'
+import { useMatch, useNavigate } from 'react-router-dom'
+import { Users, Link2, Check, X, UserPlus, LogOut } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 const SIMULATED_MEMBERS = [
   { initials: 'JB', color: '#c4973a' },
@@ -110,11 +111,17 @@ function CollaboratorsPopover({ onClose }) {
 
 export default function AppHeader({ projects = [] }) {
   const match = useMatch('/project/:slug')
+  const navigate = useNavigate()
   const slug = match?.params?.slug ?? null
   const project = slug ? projects.find(p => p.slug === slug) : null
 
   const [showCollaborators, setShowCollaborators] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    navigate('/')
+  }
 
   function handleCopyLink() {
     const url = `https://shiplog.app/view/${slug}`
@@ -192,6 +199,8 @@ export default function AppHeader({ projects = [] }) {
         </span>
       </div>
 
+      {/* Right side: sharing controls + sign-out */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       {/* Sharing controls — only on board pages */}
       {project && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -239,6 +248,19 @@ export default function AppHeader({ projects = [] }) {
           </button>
         </div>
       )}
+
+      <button
+        onClick={handleSignOut}
+        title="Sign out"
+        style={{
+          ...shareBtn,
+          padding: '5px 9px',
+        }}
+      >
+        <LogOut size={13} strokeWidth={2} />
+        Sign out
+      </button>
+      </div>
     </header>
   )
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 const FEATURES = [
   {
@@ -38,10 +39,34 @@ export default function Landing() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [mode, setMode] = useState('signin') // 'signin' | 'signup'
+  const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  function handleSignIn(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    navigate('/projects')
+    setError('')
+    setSuccessMsg('')
+    setLoading(true)
+
+    if (mode === 'signin') {
+      const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+      if (err) {
+        setError(err.message)
+      } else {
+        navigate('/projects')
+      }
+    } else {
+      const { error: err } = await supabase.auth.signUp({ email, password })
+      if (err) {
+        setError(err.message)
+      } else {
+        setSuccessMsg('Check your email to confirm your account.')
+      }
+    }
+
+    setLoading(false)
   }
 
   return (
@@ -156,7 +181,7 @@ export default function Landing() {
                 margin: '0 0 6px',
                 letterSpacing: '-0.02em',
               }}>
-                Sign in to Shiplog
+                {mode === 'signin' ? 'Sign in to Shiplog' : 'Create your account'}
               </h2>
               <p style={{
                 fontFamily: 'Syne, sans-serif',
@@ -164,10 +189,10 @@ export default function Landing() {
                 color: 'var(--text-dim)',
                 margin: '0 0 28px',
               }}>
-                Welcome back. Enter your credentials to continue.
+                {mode === 'signin' ? 'Welcome back. Enter your credentials to continue.' : 'Get started — it only takes a moment.'}
               </p>
 
-              <form onSubmit={handleSignIn} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
                   <label style={{
                     fontFamily: '"IBM Plex Mono", monospace',
@@ -244,8 +269,30 @@ export default function Landing() {
                   </button>
                 </div>
 
+                {error && (
+                  <p style={{
+                    fontFamily: 'Syne, sans-serif',
+                    fontSize: '12px',
+                    color: 'var(--priority-critical)',
+                    margin: '0',
+                  }}>
+                    {error}
+                  </p>
+                )}
+                {successMsg && (
+                  <p style={{
+                    fontFamily: 'Syne, sans-serif',
+                    fontSize: '12px',
+                    color: 'var(--col-done, #3dab7a)',
+                    margin: '0',
+                  }}>
+                    {successMsg}
+                  </p>
+                )}
+
                 <button
                   type="submit"
+                  disabled={loading}
                   style={{
                     fontFamily: 'Syne, sans-serif',
                     fontWeight: 700,
@@ -255,13 +302,14 @@ export default function Landing() {
                     border: 'none',
                     borderRadius: '8px',
                     padding: '11px 0',
-                    cursor: 'pointer',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    opacity: loading ? 0.7 : 1,
                     width: '100%',
                     marginTop: '4px',
                     letterSpacing: '-0.01em',
                   }}
                 >
-                  Sign In
+                  {loading ? '...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
                 </button>
 
                 {/* Divider */}
@@ -312,13 +360,26 @@ export default function Landing() {
                 margin: '20px 0 0',
                 textAlign: 'center',
               }}>
-                Don't have an account?{' '}
-                <button
-                  type="button"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Syne, sans-serif', fontSize: '12px', color: 'var(--accent)', padding: 0, fontWeight: 600 }}
-                >
-                  Get started
-                </button>
+                {mode === 'signin' ? (
+                  <>
+                    Don't have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setMode('signup'); setError(''); setSuccessMsg('') }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Syne, sans-serif', fontSize: '12px', color: 'var(--accent)', padding: 0, fontWeight: 600 }}
+                    >
+                      Get started
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setMode('signin'); setError(''); setSuccessMsg('') }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Syne, sans-serif', fontSize: '12px', color: 'var(--accent)', padding: 0, fontWeight: 600 }}
+                  >
+                    Back to sign in
+                  </button>
+                )}
               </p>
             </div>
           </div>
